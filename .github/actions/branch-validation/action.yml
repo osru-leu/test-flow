@@ -1,0 +1,71 @@
+name: 'Branch Validation'
+description: 'Validates that the branch meets deployment requirements'
+
+inputs:
+  branch:
+    description: 'Branch to validate'
+    required: true
+  environment:
+    description: 'Target environment'
+    required: true
+
+outputs:
+  is_valid:
+    description: 'Whether the branch validation passed'
+    value: ${{ steps.validate.outputs.is_valid }}
+  message:
+    description: 'Validation message'
+    value: ${{ steps.validate.outputs.message }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Branch
+      id: validate
+      shell: bash
+      run: |
+        echo "🔍 Running Branch Validation..."
+        echo "Branch: ${{ inputs.branch }}"
+        echo "Environment: ${{ inputs.environment }}"
+        
+        # TODO: Implement your branch validation logic here
+        # Examples:
+        # - Verify branch naming convention
+        # - Check if branch is protected
+        # - Validate branch is up-to-date with base branch
+        # - Check if branch has required approvals
+        # - Verify CI/CD checks passed on this branch
+        
+        is_valid="true"
+        message="Branch validation passed"
+        
+        # Example validation rules:
+        branch="${{ inputs.branch }}"
+        environment="${{ inputs.environment }}"
+        
+        # Production deployments should only come from specific branches
+        if [[ "${environment}" == "production" ]]; then
+          if [[ ! "${branch}" =~ ^(main|master|release/.*)$ ]]; then
+            is_valid="false"
+            message="Production deployments must come from main, master, or release/* branches"
+          fi
+        fi
+        
+        # Staging can deploy from develop or release branches
+        if [[ "${environment}" == "staging" ]]; then
+          if [[ ! "${branch}" =~ ^(main|master|develop|release/.*)$ ]]; then
+            is_valid="false"
+            message="Staging deployments must come from main, master, develop, or release/* branches"
+          fi
+        fi
+        
+        echo "is_valid=${is_valid}" >> $GITHUB_OUTPUT
+        echo "message=${message}" >> $GITHUB_OUTPUT
+        
+        if [[ "${is_valid}" == "true" ]]; then
+          echo "✅ Branch validation passed"
+        else
+          echo "❌ Branch validation failed: ${message}"
+          exit 1
+        fi
+

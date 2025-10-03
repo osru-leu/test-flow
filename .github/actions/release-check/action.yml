@@ -1,0 +1,66 @@
+name: 'Release Check'
+description: 'Checks for future or active release availability'
+
+inputs:
+  release_type:
+    description: 'Type of release (future or active)'
+    required: true
+  environment:
+    description: 'Target environment'
+    required: true
+
+outputs:
+  is_valid:
+    description: 'Whether a valid release was found'
+    value: ${{ steps.check.outputs.is_valid }}
+  release_id:
+    description: 'ID of the release to deploy to'
+    value: ${{ steps.check.outputs.release_id }}
+  message:
+    description: 'Check result message'
+    value: ${{ steps.check.outputs.message }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check for Future or Active Release
+      id: check
+      shell: bash
+      run: |
+        echo "🔍 Checking for Future or Active Release..."
+        echo "Release Type: ${{ inputs.release_type }}"
+        echo "Environment: ${{ inputs.environment }}"
+        
+        # TODO: Implement your release check logic here
+        # Examples:
+        # - Query release management system
+        # - Check if a future release window is available
+        # - Verify active release exists
+        # - Validate release schedule
+        # - Check release capacity
+        
+        is_valid="true"
+        release_id="release-$(date +%Y%m%d-%H%M%S)"
+        message="Valid ${{ inputs.release_type }} release found"
+        
+        # Example logic:
+        if [[ "${{ inputs.release_type }}" == "future" ]]; then
+          echo "Checking for future release availability..."
+          # Add logic to check if future release window exists
+          # This could involve API calls to your release management system
+        elif [[ "${{ inputs.release_type }}" == "active" ]]; then
+          echo "Checking for active release..."
+          # Add logic to verify an active release exists
+        fi
+        
+        echo "is_valid=${is_valid}" >> $GITHUB_OUTPUT
+        echo "release_id=${release_id}" >> $GITHUB_OUTPUT
+        echo "message=${message}" >> $GITHUB_OUTPUT
+        
+        if [[ "${is_valid}" == "true" ]]; then
+          echo "✅ Release check passed - Release ID: ${release_id}"
+        else
+          echo "❌ Release check failed: ${message}"
+          exit 1
+        fi
+

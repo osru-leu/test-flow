@@ -1,0 +1,58 @@
+name: 'Deployment Lifecycle Validation'
+description: 'Validates deployment lifecycle requirements before proceeding'
+
+inputs:
+  environment:
+    description: 'Target environment for deployment'
+    required: true
+  branch:
+    description: 'Branch being deployed'
+    required: true
+
+outputs:
+  is_valid:
+    description: 'Whether the deployment lifecycle validation passed'
+    value: ${{ steps.validate.outputs.is_valid }}
+  message:
+    description: 'Validation message'
+    value: ${{ steps.validate.outputs.message }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Deployment Lifecycle
+      id: validate
+      shell: bash
+      run: |
+        echo "🔍 Running Deployment Lifecycle Validation..."
+        echo "Environment: ${{ inputs.environment }}"
+        echo "Branch: ${{ inputs.branch }}"
+        
+        # TODO: Implement your lifecycle validation logic here
+        # Examples:
+        # - Check if deployment is allowed at this time
+        # - Verify deployment prerequisites
+        # - Check if previous deployment is complete
+        # - Validate deployment window
+        
+        # Placeholder validation
+        is_valid="true"
+        message="Deployment lifecycle validation passed"
+        
+        # Example validation rules:
+        if [[ "${{ inputs.environment }}" == "production" ]]; then
+          # Add production-specific checks
+          echo "Running production lifecycle checks..."
+          # Check deployment window, approval status, etc.
+        fi
+        
+        echo "is_valid=${is_valid}" >> $GITHUB_OUTPUT
+        echo "message=${message}" >> $GITHUB_OUTPUT
+        
+        if [[ "${is_valid}" == "true" ]]; then
+          echo "✅ Lifecycle validation passed"
+        else
+          echo "❌ Lifecycle validation failed: ${message}"
+          exit 1
+        fi
+

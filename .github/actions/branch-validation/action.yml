@@ -43,19 +43,43 @@ runs:
         branch="${{ inputs.branch }}"
         environment="${{ inputs.environment }}"
         
-        # Production deployments should only come from specific branches
-        if [[ "${environment}" == "production" ]]; then
-          if [[ ! "${branch}" =~ ^(main|master|release/.*)$ ]]; then
+        # DEV-INT is auto-deployed from main, manual deploys also allowed from main
+        if [[ "${environment}" == "dev-int" ]]; then
+          if [[ ! "${branch}" =~ ^(main)$ ]]; then
             is_valid="false"
-            message="Production deployments must come from main, master, or release/* branches"
+            message="DEV-INT deployments must come from main branch"
           fi
         fi
         
-        # Staging can deploy from develop or release branches
-        if [[ "${environment}" == "staging" ]]; then
-          if [[ ! "${branch}" =~ ^(main|master|develop|release/.*)$ ]]; then
+        # FUTURE and ACTIVE can deploy from main or release branches
+        if [[ "${environment}" == "future" || "${environment}" == "active" ]]; then
+          if [[ ! "${branch}" =~ ^(main|release/.*)$ ]]; then
             is_valid="false"
-            message="Staging deployments must come from main, master, develop, or release/* branches"
+            message="Future/Active deployments must come from main or release/* branches"
+          fi
+        fi
+        
+        # UAT can deploy from main or release branches
+        if [[ "${environment}" == "uat" ]]; then
+          if [[ ! "${branch}" =~ ^(main|release/.*)$ ]]; then
+            is_valid="false"
+            message="UAT deployments must come from main or release/* branches"
+          fi
+        fi
+        
+        # Staging should deploy from main or release branches
+        if [[ "${environment}" == "staging" ]]; then
+          if [[ ! "${branch}" =~ ^(main|release/.*)$ ]]; then
+            is_valid="false"
+            message="Staging deployments must come from main or release/* branches"
+          fi
+        fi
+        
+        # Production deployments should only come from specific branches
+        if [[ "${environment}" == "prod" ]]; then
+          if [[ ! "${branch}" =~ ^(main|release/.*)$ ]]; then
+            is_valid="false"
+            message="Production deployments must come from main or release/* branches"
           fi
         fi
         

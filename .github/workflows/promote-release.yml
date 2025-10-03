@@ -12,15 +12,21 @@ on:
         required: true
         type: choice
         options:
-          - dev
+          - dev-int
+          - future
+          - active
+          - uat
           - staging
       target_environment:
         description: 'Target environment'
         required: true
         type: choice
         options:
+          - future
+          - active
+          - uat
           - staging
-          - production
+          - prod
 
 jobs:
   validate-promotion:

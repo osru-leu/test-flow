@@ -42,25 +42,74 @@ runs:
         source="${{ inputs.source_environment }}"
         target="${{ inputs.target_environment }}"
         
-        # Check valid promotion paths
-        if [[ "${source}" == "dev" && "${target}" == "production" ]]; then
-          is_valid="false"
-          message="Cannot promote directly from dev to production. Must go through staging first."
-        fi
+        # Check valid promotion paths based on diagram:
+        # DEV-INT → FUTURE/ACTIVE
+        # FUTURE → ACTIVE
+        # ACTIVE → UAT or STAGING
+        # UAT → STAGING (optional path)
+        # STAGING → PROD
         
         if [[ "${source}" == "${target}" ]]; then
           is_valid="false"
           message="Source and target environments cannot be the same"
         fi
         
-        if [[ "${source}" == "staging" && "${target}" == "dev" ]]; then
-          is_valid="false"
-          message="Cannot demote from staging to dev"
+        # Valid promotion paths
+        if [[ "${source}" == "dev-int" ]]; then
+          if [[ "${target}" != "future" && "${target}" != "active" ]]; then
+            is_valid="false"
+            message="DEV-INT can only promote to FUTURE or ACTIVE environments"
+          fi
         fi
         
-        if [[ "${source}" == "production" ]]; then
+        if [[ "${source}" == "future" ]]; then
+          if [[ "${target}" != "active" ]]; then
+            is_valid="false"
+            message="FUTURE can only promote to ACTIVE environment"
+          fi
+        fi
+        
+        if [[ "${source}" == "active" ]]; then
+          if [[ "${target}" != "uat" && "${target}" != "staging" ]]; then
+            is_valid="false"
+            message="ACTIVE can only promote to UAT or STAGING environments"
+          fi
+        fi
+        
+        if [[ "${source}" == "uat" ]]; then
+          if [[ "${target}" != "staging" ]]; then
+            is_valid="false"
+            message="UAT can only promote to STAGING environment"
+          fi
+        fi
+        
+        if [[ "${source}" == "staging" ]]; then
+          if [[ "${target}" != "prod" ]]; then
+            is_valid="false"
+            message="STAGING can only promote to PROD environment"
+          fi
+        fi
+        
+        # Prevent promoting from PROD
+        if [[ "${source}" == "prod" ]]; then
           is_valid="false"
-          message="Cannot promote from production. Use rollback workflow instead."
+          message="Cannot promote from PROD. Use rollback workflow instead."
+        fi
+        
+        # Prevent demotion (backwards promotion)
+        declare -A env_order
+        env_order["dev-int"]=1
+        env_order["future"]=2
+        env_order["active"]=3
+        env_order["uat"]=4
+        env_order["staging"]=5
+        env_order["prod"]=6
+        
+        if [[ -n "${env_order[$source]}" && -n "${env_order[$target]}" ]]; then
+          if [[ ${env_order[$target]} -lt ${env_order[$source]} ]]; then
+            is_valid="false"
+            message="Cannot demote from ${source} to ${target}"
+          fi
         fi
         
         # TODO: Add additional validation checks:

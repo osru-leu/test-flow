@@ -19,6 +19,30 @@ Deploy to Future Release    Workflow Stops (Failure)
 (Duration - Unlimited)
 ```
 
+### Environment Structure
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      ENVIRONMENTS                            │
+│                                                              │
+│                          PROD                                │
+│                           ▲                                  │
+│                           │                                  │
+│  FUTURE → ACTIVE →   STAGING                                │
+│                           ▲                                  │
+│                           │                                  │
+│  DEV-INT ───────────→  PARTNER/UAT                          │
+│  (main)                                                      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Valid Promotion Paths:**
+- DEV-INT → FUTURE or ACTIVE
+- FUTURE → ACTIVE
+- ACTIVE → UAT or STAGING
+- UAT → STAGING
+- STAGING → PROD
+
 ### Promotion Flow (with Approval Gates)
 
 ```
@@ -137,38 +161,59 @@ Post-Promotion Verification
 
 ## Usage
 
-### Trigger Deployment Manually
+### Auto-Deploy to DEV-INT
+
+**Automatic deployment when pushing to main:**
+
+```bash
+git checkout main
+git pull
+git merge feature/my-feature
+git push origin main
+# ✅ Automatically deploys to DEV-INT
+```
+
+### Trigger Manual Deployment
 
 1. Go to Actions tab in GitHub
 2. Select "Deployment Workflow"
 3. Click "Run workflow"
 4. Select:
-   - **Environment**: dev, staging, or production
-   - **Release Type**: future or active
+   - **Environment**: dev-int, future, active, uat, staging, or prod
+   - **Release Type**: future, active, or standard (optional)
 5. Click "Run workflow"
 
-### Example: Production Deployment
+### Example Deployments
+
+#### Deploy to FUTURE Environment
 
 ```yaml
 # Triggered manually with inputs:
-environment: production
+environment: future
 release_type: future
 ```
 
-Requirements for production:
-- Must be from `main`, `master`, or `release/*` branch
-- Must pass lifecycle validation
-- Must have valid future/active release
+Use this to deploy next version for testing.
 
-### Example: Development Deployment
+#### Deploy to ACTIVE Environment
 
 ```yaml
 # Triggered manually with inputs:
-environment: dev
+environment: active
 release_type: active
 ```
 
-More lenient requirements for development environment.
+Deploy current stable release.
+
+#### Deploy to UAT
+
+```yaml
+# Triggered manually with inputs:
+environment: uat
+release_type: standard
+```
+
+Direct deployment to UAT (or use promotion workflow from ACTIVE).
 
 ### Promote Release Between Environments
 
@@ -183,14 +228,38 @@ More lenient requirements for development environment.
 6. **Wait for approval** from authorized reviewers
 7. Promotion executes after approval
 
-### Example: Staging to Production Promotion
+### Example Promotions
+
+#### Promote FUTURE → ACTIVE
 
 ```yaml
 # Triggered manually with inputs:
 release_id: release-20250103-120000
-source_environment: staging
-target_environment: production
+source_environment: future
+target_environment: active
 ```
+
+No approval required (optional).
+
+#### Promote ACTIVE → UAT
+
+```yaml
+release_id: release-20250103-120000
+source_environment: active
+target_environment: uat
+```
+
+Requires 1 approval.
+
+#### Promote STAGING → PROD
+
+```yaml
+release_id: release-20250103-120000
+source_environment: staging
+target_environment: prod
+```
+
+**Requires 2+ approvals** - most critical promotion.
 
 **Approval Process**:
 1. Promotion request is validated
@@ -200,10 +269,13 @@ target_environment: production
 5. After approval, promotion proceeds automatically
 
 **Valid Promotion Paths**:
-- ✅ dev → staging
-- ✅ staging → production
-- ❌ dev → production (must go through staging)
-- ❌ Demotion (staging → dev)
+- ✅ dev-int → future or active
+- ✅ future → active
+- ✅ active → uat or staging
+- ✅ uat → staging
+- ✅ staging → prod
+- ❌ dev-int → prod (must go through intermediate environments)
+- ❌ Demotion (backwards promotion)
 
 ## Setting Up Approval Gates
 
@@ -213,29 +285,29 @@ To enable manual approvals for promotions:
 
 In your repository settings, create these environments:
 
-#### Environment: `promotion-approval-staging`
-- **Reviewers**: Add team members who can approve staging promotions
-- **Wait timer**: 0 minutes (optional)
-- **Deployment branches**: All branches
+#### For Approval Gates:
+- `promotion-approval-uat` - 1 reviewer (QA/Dev leads)
+- `promotion-approval-staging` - 1 reviewer (Senior devs/QA leads)
+- `promotion-approval-prod` - 2+ reviewers (Senior engineers/Managers)
 
-#### Environment: `promotion-approval-production`
-- **Reviewers**: Add senior team members/managers for production approvals
-- **Required reviewers**: 2 (recommended for production)
-- **Wait timer**: 0 minutes (or add delay if needed)
-- **Deployment branches**: All branches
+#### For Deployment Targets:
+- `dev-int` - Auto-deploy from main, no protection
+- `future` - Manual deploy, no protection
+- `active` - Manual deploy, optional protection
+- `uat` - Deploy after approval
+- `staging` - Deploy after approval
+- `prod` - Deploy after approval, strictest protection
 
-### 2. Configure Environment-Specific Settings
+### 2. Environment Details
 
-You can also add environment protection for the actual deployment environments:
-
-#### Environment: `production`
-- **Reviewers**: Production deployment approvers
-- **Environment secrets**: Add production credentials
-- **Environment variables**: Production-specific configs
-
-#### Environment: `staging`
-- **Environment secrets**: Staging credentials
-- **Environment variables**: Staging configs
+| Environment | Auto-Deploy | Branch | Approvals | Purpose |
+|------------|-------------|---------|-----------|---------|
+| **dev-int** | ✅ Yes (main) | main | None | Integration testing |
+| **future** | Manual | main, release/* | None | Next version testing |
+| **active** | Manual | main, release/* | Optional | Current stable release |
+| **uat** | Promotion | - | 1 | Partner/UAT testing |
+| **staging** | Promotion | - | 1 | Pre-prod validation |
+| **prod** | Promotion | - | 2+ | Production |
 
 ### 3. How Approvals Work
 
@@ -326,15 +398,75 @@ All failures are logged with clear error messages and visible in GitHub Actions 
 - ✅ **Audit trail** of all approvals and promotions
 - ✅ **Rollback-ready** with verification steps
 
+## Quick Start Guide
+
+### 1. Initial Setup
+```bash
+# Create GitHub environments in repository settings
+- dev-int (no protection)
+- future (no protection)  
+- active (optional protection)
+- promotion-approval-uat (1 reviewer)
+- uat (environment secrets)
+- promotion-approval-staging (1 reviewer)
+- staging (environment secrets)
+- promotion-approval-prod (2+ reviewers)
+- prod (strict protection + secrets)
+```
+
+### 2. Daily Development Flow
+```bash
+# 1. Develop feature
+git checkout -b feature/new-feature
+# ... make changes ...
+git commit -m "Add new feature"
+
+# 2. Create PR to main
+gh pr create --base main
+
+# 3. After approval, merge
+gh pr merge
+
+# 4. ✅ Auto-deploys to DEV-INT
+# Monitor deployment in Actions tab
+```
+
+### 3. Release Flow
+```bash
+# 1. Create release branch
+git checkout -b release/v2.0.0
+
+# 2. Deploy to FUTURE for testing
+# Trigger workflow: environment=future
+
+# 3. Promote to ACTIVE when stable
+# Trigger promotion: future → active
+
+# 4. Promote to UAT for partner testing
+# Trigger promotion: active → uat (requires 1 approval)
+
+# 5. Promote to STAGING
+# Trigger promotion: uat → staging (requires 1 approval)
+
+# 6. Promote to PROD
+# Trigger promotion: staging → prod (requires 2+ approvals)
+```
+
 ## Next Steps
 
-1. Implement actual validation logic in each action
-2. Integrate with your release management system
-3. Add actual deployment commands
-4. Configure GitHub environments with protection rules
-5. Add secrets and environment variables as needed
-6. Set up notifications for deployment status
-7. Add rollback workflows if needed
+1. ✅ Configure GitHub environments (see Setup Guide above)
+2. ✅ Add environment-specific secrets and variables
+3. 📝 Implement actual deployment logic in actions (TODOs marked)
+4. 📝 Integrate with your infrastructure (K8s, cloud provider, etc.)
+5. 📝 Add monitoring and alerting
+6. 📝 Test the full flow in non-production environments
+7. 📝 Document your specific deployment procedures
+8. 📝 Set up Slack/Teams notifications (optional)
+
+## Additional Documentation
+
+- 📖 [Environment Flow Details](docs/ENVIRONMENT_FLOW.md) - Comprehensive environment guide
+- 📖 [Approval Setup Guide](docs/SETUP_APPROVALS.md) - Detailed approval configuration
 
 ## Directory Structure
 

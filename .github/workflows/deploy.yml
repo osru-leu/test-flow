@@ -8,20 +8,54 @@ on:
         required: true
         type: choice
         options:
-          - dev
+          - dev-int
+          - future
+          - active
+          - uat
           - staging
-          - production
+          - prod
       release_type:
-        description: 'Release type'
-        required: true
+        description: 'Release type (for future/active environments)'
+        required: false
         type: choice
         options:
           - future
           - active
+          - standard
+  push:
+    branches:
+      - main
 
 jobs:
+  # Auto-deploy to dev-int when pushing to main
+  auto-deploy-dev-int:
+    name: Auto Deploy to DEV-INT
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: dev-int
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to DEV-INT
+        uses: ./.github/actions/deploy-to-release
+        with:
+          release_id: "dev-int-${{ github.sha }}"
+          environment: dev-int
+          duration: unlimited
+
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Auto-Deployed to DEV-INT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: Push to main branch" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
   deployment-lifecycle-validation:
     name: Deployment Lifecycle Validation
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       is_valid: ${{ steps.validate.outputs.is_valid }}
@@ -44,6 +78,7 @@ jobs:
 
   branch-validation:
     name: Branch Validation
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: deployment-lifecycle-validation
     outputs:
@@ -66,7 +101,8 @@ jobs:
           exit 1
 
   release-check:
-    name: Future or Active Release Check
+    name: Release Check
+    if: github.event_name == 'workflow_dispatch' && (inputs.environment == 'future' || inputs.environment == 'active')
     runs-on: ubuntu-latest
     needs: branch-validation
     outputs:
@@ -80,29 +116,39 @@ jobs:
         id: check-release
         uses: ./.github/actions/release-check
         with:
-          release_type: ${{ inputs.release_type }}
+          release_type: ${{ inputs.release_type || 'standard' }}
           environment: ${{ inputs.environment }}
 
       - name: Check Release Validation Result
         if: steps.check-release.outputs.is_valid != 'true'
         run: |
-          echo "::error::Release check failed - no valid future or active release found"
+          echo "::error::Release check failed - no valid release found"
           exit 1
 
-  deploy-to-future-release:
-    name: Deploy to Future Release
+  deploy-to-environment:
+    name: Deploy to ${{ inputs.environment || 'dev-int' }}
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    needs: release-check
+    needs: [branch-validation]
     environment:
       name: ${{ inputs.environment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy to Release
+      - name: Set Release ID
+        id: release-id
+        run: |
+          if [[ "${{ inputs.environment }}" == "future" || "${{ inputs.environment }}" == "active" ]]; then
+            echo "release_id=${{ needs.release-check.outputs.release_id }}" >> $GITHUB_OUTPUT
+          else
+            echo "release_id=${{ inputs.environment }}-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Environment
         uses: ./.github/actions/deploy-to-release
         with:
-          release_id: ${{ needs.release-check.outputs.release_id }}
+          release_id: ${{ steps.release-id.outputs.release_id }}
           environment: ${{ inputs.environment }}
           duration: 'unlimited'
 
@@ -111,7 +157,8 @@ jobs:
           echo "## Deployment Successful! 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment**: ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Release ID**: ${{ needs.release-check.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Duration**: Unlimited" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release ID**: ${{ steps.release-id.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release Type**: ${{ inputs.release_type || 'standard' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 

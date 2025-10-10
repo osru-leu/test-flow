@@ -1,3 +1,61 @@
+# Test-Flow: Reusable Deployment Workflow Library
+
+**A centralized repository of GitHub Actions workflows and composite actions for enterprise deployment orchestration.**
+
+## 🎯 Purpose
+
+This repository is a **workflow library** designed to be used by application repositories. It contains reusable composite actions for deployment validation, orchestration, and promotion across environments.
+
+## 🏢 Two-Repository Architecture
+
+```
+test-flow (THIS REPO)              sam-sample-python (Application Repos)
+├── Reusable actions          →    ├── Application code
+├── Deployment logic          →    ├── Unit tests  
+├── Validation rules          →    ├── Workflows that CALL test-flow
+└── Documentation             →    └── App-specific configs
+```
+
+**Key Point:** Application repos **call** actions from this repo. This is NOT an application - it's a shared library!
+
+## 🚀 Quick Start for Application Repos
+
+To use test-flow actions in your application:
+
+```yaml
+# In your-app/.github/workflows/deploy.yml
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout test-flow (this repo)
+      - name: Checkout test-flow
+        uses: actions/checkout@v4
+        with:
+          repository: ALTIMETRIK/test-flow
+          path: test-flow
+      
+      # 2. Checkout your app
+      - name: Checkout my app
+        uses: actions/checkout@v4
+        with:
+          path: my-app
+      
+      # 3. Use test-flow actions
+      - name: Validate deployment
+        uses: ./test-flow/.github/actions/deployment-lifecycle-validation
+        with:
+          environment: dev-int
+          branch: main
+```
+
+## 📖 Example Application
+
+See **[sam-sample-python](https://github.com/ALTIMETRIK/sam-sample-python)** for a complete example of an application using test-flow actions.
+
+---
+
 # Deployment Flow Workflow
 
 This repository contains a modular GitHub Actions workflow that implements the deployment flow diagram with proper validation gates and failure handling.

@@ -1,7 +1,7 @@
-name: Promote Release Between Environments
+name: Promote Release Between Environments (Reusable)
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       release_id:
         description: 'Release ID to promote'
@@ -10,23 +10,15 @@ on:
       source_environment:
         description: 'Source environment'
         required: true
-        type: choice
-        options:
-          - dev-int
-          - future
-          - active
-          - uat
-          - staging
+        type: string
       target_environment:
         description: 'Target environment'
         required: true
-        type: choice
-        options:
-          - future
-          - active
-          - uat
-          - staging
-          - prod
+        type: string
+      app_name:
+        description: 'Application name'
+        required: true
+        type: string
 
 jobs:
   validate-promotion:

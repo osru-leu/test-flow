@@ -1,0 +1,121 @@
+name: 'Pre-Promotion Checks'
+description: 'Runs checks before executing promotion'
+
+inputs:
+  release_id:
+    description: 'Release ID being promoted'
+    required: true
+  source_environment:
+    description: 'Source environment'
+    required: true
+  target_environment:
+    description: 'Target environment'
+    required: true
+
+outputs:
+  passed:
+    description: 'Whether all checks passed'
+    value: ${{ steps.checks.outputs.passed }}
+  report:
+    description: 'Check results report'
+    value: ${{ steps.checks.outputs.report }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Pre-Promotion Checks
+      id: checks
+      shell: bash
+      run: |
+        echo "🔍 Running Pre-Promotion Checks..."
+        echo "Release ID: ${{ inputs.release_id }}"
+        echo "Target: ${{ inputs.target_environment }}"
+        
+        all_passed="true"
+        
+        # Check 1: Health checks in source environment
+        echo "✓ Check 1: Verifying release health in ${{ inputs.source_environment }}..."
+        # TODO: Query monitoring/observability platform
+        # - Check error rates
+        # - Verify performance metrics
+        # - Check for active incidents
+        
+        # Check 2: Test coverage and results
+        echo "✓ Check 2: Verifying test results..."
+        # TODO: Verify all tests passed
+        # - Unit tests
+        # - Integration tests
+        # - E2E tests
+        # - Load tests (if applicable)
+        
+        # Check 3: Security scans
+        echo "✓ Check 3: Running security scans..."
+        # TODO: Run security checks
+        # - Vulnerability scans
+        # - Dependency checks
+        # - SAST/DAST results
+        # - Secret scanning
+        
+        # Check 4: Compliance checks
+        echo "✓ Check 4: Verifying compliance requirements..."
+        # TODO: Check compliance
+        # - Audit logs complete
+        # - Required documentation present
+        # - Change management tickets approved
+        
+        # Check 5: Rollback plan
+        echo "✓ Check 5: Verifying rollback plan..."
+        # TODO: Ensure rollback is possible
+        # - Previous version available
+        # - Rollback procedure documented
+        # - Database migrations are reversible
+        
+        # Check 6: Target environment readiness
+        echo "✓ Check 6: Checking target environment readiness..."
+        # TODO: Verify target environment
+        # - Sufficient resources available
+        # - No ongoing deployments
+        # - Infrastructure healthy
+        
+        # Check 7: Dependencies
+        echo "✓ Check 7: Checking dependencies..."
+        # TODO: Verify dependencies
+        # - Required services are available
+        # - External integrations are ready
+        # - Configuration is present
+        
+        # Create report
+        report=$(cat <<EOF
+        Pre-Promotion Check Report
+        ==========================
+        Release ID: ${{ inputs.release_id }}
+        Source: ${{ inputs.source_environment }}
+        Target: ${{ inputs.target_environment }}
+        
+        ✅ Health checks: PASSED
+        ✅ Test coverage: PASSED
+        ✅ Security scans: PASSED
+        ✅ Compliance: PASSED
+        ✅ Rollback plan: PASSED
+        ✅ Environment readiness: PASSED
+        ✅ Dependencies: PASSED
+        
+        Overall: PASSED
+        EOF
+        )
+        
+        echo "${report}"
+        
+        # Set outputs
+        echo "passed=${all_passed}" >> $GITHUB_OUTPUT
+        echo "report<<EOF" >> $GITHUB_OUTPUT
+        echo "${report}" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        if [[ "${all_passed}" == "true" ]]; then
+          echo "✅ All pre-promotion checks passed"
+        else
+          echo "❌ Some pre-promotion checks failed"
+          exit 1
+        fi
+

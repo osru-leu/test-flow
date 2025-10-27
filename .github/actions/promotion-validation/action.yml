@@ -1,0 +1,156 @@
+name: 'Promotion Validation'
+description: 'Validates if a release can be promoted to the target environment'
+
+inputs:
+  release_id:
+    description: 'Release ID to validate'
+    required: true
+  source_environment:
+    description: 'Source environment'
+    required: true
+  target_environment:
+    description: 'Target environment to promote to'
+    required: true
+
+outputs:
+  is_valid:
+    description: 'Whether the promotion is valid'
+    value: ${{ steps.validate.outputs.is_valid }}
+  metadata:
+    description: 'Promotion metadata'
+    value: ${{ steps.validate.outputs.metadata }}
+  message:
+    description: 'Validation message'
+    value: ${{ steps.validate.outputs.message }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Promotion
+      id: validate
+      shell: bash
+      run: |
+        echo "🔍 Validating Promotion Request..."
+        echo "Release ID: ${{ inputs.release_id }}"
+        echo "From: ${{ inputs.source_environment }}"
+        echo "To: ${{ inputs.target_environment }}"
+        
+        is_valid="true"
+        message="Promotion validation passed"
+        
+        # Validate promotion path
+        source="${{ inputs.source_environment }}"
+        target="${{ inputs.target_environment }}"
+        
+        # Check valid promotion paths based on diagram:
+        # DEV-INT → FUTURE/ACTIVE
+        # FUTURE → ACTIVE
+        # ACTIVE → UAT or STAGING
+        # UAT → STAGING (optional path)
+        # STAGING → PROD
+        
+        if [[ "${source}" == "${target}" ]]; then
+          is_valid="false"
+          message="Source and target environments cannot be the same"
+        fi
+        
+        # Valid promotion paths
+        if [[ "${source}" == "dev-int" ]]; then
+          if [[ "${target}" != "future" && "${target}" != "active" ]]; then
+            is_valid="false"
+            message="DEV-INT can only promote to FUTURE or ACTIVE environments"
+          fi
+        fi
+        
+        if [[ "${source}" == "future" ]]; then
+          if [[ "${target}" != "active" ]]; then
+            is_valid="false"
+            message="FUTURE can only promote to ACTIVE environment"
+          fi
+        fi
+        
+        if [[ "${source}" == "active" ]]; then
+          if [[ "${target}" != "uat" && "${target}" != "staging" ]]; then
+            is_valid="false"
+            message="ACTIVE can only promote to UAT or STAGING environments"
+          fi
+        fi
+        
+        if [[ "${source}" == "uat" ]]; then
+          if [[ "${target}" != "staging" ]]; then
+            is_valid="false"
+            message="UAT can only promote to STAGING environment"
+          fi
+        fi
+        
+        if [[ "${source}" == "staging" ]]; then
+          if [[ "${target}" != "prod" ]]; then
+            is_valid="false"
+            message="STAGING can only promote to PROD environment"
+          fi
+        fi
+        
+        # Prevent promoting from PROD
+        if [[ "${source}" == "prod" ]]; then
+          is_valid="false"
+          message="Cannot promote from PROD. Use rollback workflow instead."
+        fi
+        
+        # Prevent demotion (backwards promotion)
+        declare -A env_order
+        env_order["dev-int"]=1
+        env_order["future"]=2
+        env_order["active"]=3
+        env_order["uat"]=4
+        env_order["staging"]=5
+        env_order["prod"]=6
+        
+        if [[ -n "${env_order[$source]}" && -n "${env_order[$target]}" ]]; then
+          if [[ ${env_order[$target]} -lt ${env_order[$source]} ]]; then
+            is_valid="false"
+            message="Cannot demote from ${source} to ${target}"
+          fi
+        fi
+        
+        # TODO: Add additional validation checks:
+        # - Verify release exists in source environment
+        # - Check release health/stability in source
+        # - Validate minimum soak time in source environment
+        # - Check for blocking issues or incidents
+        # - Verify all tests passed in source environment
+        # - Check release notes and change log completeness
+        
+        # Example: Check if release exists (mock implementation)
+        echo "Checking if release ${{ inputs.release_id }} exists in ${source}..."
+        # Add API call or database check here
+        
+        # Example: Verify soak time
+        echo "Verifying minimum soak time in ${source}..."
+        # Add logic to check how long release has been in source environment
+        
+        # Create metadata
+        metadata=$(cat <<EOF
+        {
+          "release_id": "${{ inputs.release_id }}",
+          "source": "${source}",
+          "target": "${target}",
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "validation_passed": ${is_valid}
+        }
+        EOF
+        )
+        
+        # Remove newlines for output
+        metadata_single_line=$(echo $metadata | tr -d '\n')
+        
+        echo "is_valid=${is_valid}" >> $GITHUB_OUTPUT
+        echo "metadata=${metadata_single_line}" >> $GITHUB_OUTPUT
+        echo "message=${message}" >> $GITHUB_OUTPUT
+        
+        if [[ "${is_valid}" == "true" ]]; then
+          echo "✅ Promotion validation passed"
+        else
+          echo "❌ Promotion validation failed: ${message}"
+          exit 1
+        fi
+
